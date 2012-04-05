@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 
 from boto.s3.connection import S3Connection
+from boto.exception import S3ResponseError
 from boto.s3.key import Key
 from humus.exceptions import ConfigError
 
@@ -76,7 +77,16 @@ class Syncer(object):
         super(Syncer, self).__init__()
 
     def get_bucket(self):
-        return self.conn.create_bucket(self.config.get('AWS', 'bucket'))
+        bucket_name = self.config.get('AWS', 'bucket')
+        try:
+            bucket = self.conn.get_bucket(bucket_name, validate=True)
+        except S3ResponseError, e:
+            if e.code == "NoSuchBucket":
+                location = self.config.get('AWS', 'location')
+                bucket = self.conn.create_bucket(bucket_name, location=location)
+            else:
+                raise e
+        return bucket
 
     def load_config(self):
         config = ConfigParser.SafeConfigParser()
